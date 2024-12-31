@@ -77,10 +77,24 @@ customerRoutes = (app, channel, redisClient) => {
   SubscribeMessage(channel, service);
 
   // Signup Route
+  // app.post("/signup", async (req, res, next) => {
+  //   const { email, password, phone } = req.body;
+  //   const { data } = await service.SignUp({ email, password, phone });
+  //   res.json(data);
+  // });
   app.post("/signup", async (req, res, next) => {
     const { email, password, phone } = req.body;
-    const { data } = await service.SignUp({ email, password, phone });
-    res.json(data);
+    const response = await service.SignUp({ email, password, phone });
+
+    if (response.statusCode && response.statusCode !== 200) {
+      // If response has a status code other than 200, return it to the client
+      return res
+        .status(response.statusCode)
+        .json({ message: response.message });
+    }
+
+    // If everything is fine, return the successful response
+    return res.json(response.data);
   });
 
   // Login Route

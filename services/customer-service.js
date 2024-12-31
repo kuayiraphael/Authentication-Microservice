@@ -1,5 +1,5 @@
 const CustomerRepository = require("../database/repository/customer-repository");
-const redis = require('redis'); //~
+const redis = require("redis"); //~
 
 const {
   FormatData,
@@ -9,10 +9,10 @@ const {
 } = require("../utils");
 
 class CustomerService {
-  constructor(redisClient ) {//~
+  constructor(redisClient) {
+    //~
     this.repository = new CustomerRepository();
     this.redisClient = redisClient; //~
-
   }
 
   async SignIn(userInputs) {
@@ -33,48 +33,126 @@ class CustomerService {
       //   return FormatData({ id: existingCustomer._id, token });
       // }
       if (existingCustomer) {
-        const validPassword = await ValidatePassword(password, existingCustomer.password);
+        const validPassword = await ValidatePassword(
+          password,
+          existingCustomer.password
+        );
         if (validPassword) {
-          const accessToken = await GenerateSignature({ email: existingCustomer.email, _id: existingCustomer._id });
-  
+          const accessToken = await GenerateSignature({
+            email: existingCustomer.email,
+            _id: existingCustomer._id,
+          });
+
           // Generate and store refresh token
-          const refreshToken = await GenerateSignature({ email: existingCustomer.email, _id: existingCustomer._id }, '7d');
-          await this.redisClient.set(`refresh_token:${refreshToken}`, JSON.stringify({ email: existingCustomer.email, _id: existingCustomer._id }), { EX: 60 * 60 * 24 * 7 }); // expires in 7 days
-          
-          return FormatData({ id: existingCustomer._id, accessToken, refreshToken });
-        }}
+          const refreshToken = await GenerateSignature(
+            { email: existingCustomer.email, _id: existingCustomer._id },
+            "7d"
+          );
+          await this.redisClient.set(
+            `refresh_token:${refreshToken}`,
+            JSON.stringify({
+              email: existingCustomer.email,
+              _id: existingCustomer._id,
+            }),
+            { EX: 60 * 60 * 24 * 7 }
+          ); // expires in 7 days
+
+          return FormatData({
+            id: existingCustomer._id,
+            accessToken,
+            refreshToken,
+          });
+        }
+      }
     }
 
     return FormatData(null);
   }
   async RefreshToken(refreshToken) {
-    const storedData = await this.redisClient.get(`refresh_token:${refreshToken}`);
-    
+    const storedData = await this.redisClient.get(
+      `refresh_token:${refreshToken}`
+    );
+
     if (!storedData) {
-      throw new Error('Invalid or expired refresh token');
+      throw new Error("Invalid or expired refresh token");
     }
-    
+
     const userData = JSON.parse(storedData);
-    const newAccessToken = await GenerateSignature({ email: userData.email, _id: userData._id });
+    const newAccessToken = await GenerateSignature({
+      email: userData.email,
+      _id: userData._id,
+    });
     return { newAccessToken };
   }
-  
+
+  // async SignUp(userInputs) {
+  //   const { email, password, phone } = userInputs;
+
+  //   let userPassword = await GeneratePassword(password);
+
+  //   const existingCustomer = await this.repository.CreateCustomer({
+  //     email,
+  //     password: userPassword,
+  //     phone,
+  //   });
+
+  //   const token = await GenerateSignature({
+  //     email: email,
+  //     _id: existingCustomer._id,
+  //   });
+  //   return FormatData({ id: existingCustomer._id, token });
+  // }
+  // async SignUp(userInputs) {
+  //   const { email, password, phone } = userInputs;
+
+  //   // Check if the customer already exists
+  //   const existingCustomer = await this.repository.FindCustomer({ email });
+
+  //   if (existingCustomer) {
+  //     // Return a structured response instead of throwing an error
+  //     return FormatData(null, "User already exists", 400);
+  //   }
+
+  //   let userPassword = await GeneratePassword(password);
+
+  //   const newCustomer = await this.repository.CreateCustomer({
+  //     email,
+  //     password: userPassword,
+  //     phone,
+  //   });
+
+  //   const token = await GenerateSignature({
+  //     email: newCustomer.email,
+  //     _id: newCustomer._id,
+  //   });
+
+  //   return FormatData({ id: newCustomer._id, token });
+  // }
   async SignUp(userInputs) {
     const { email, password, phone } = userInputs;
 
+    // Check if the customer already exists
+    const existingCustomer = await this.repository.FindCustomer({ email });
+
+    if (existingCustomer) {
+      // Return a structured response instead of throwing an error
+      return FormatData(null, "User already exists", 400); // This will ensure the response is returned
+    }
+
     let userPassword = await GeneratePassword(password);
 
-    const existingCustomer = await this.repository.CreateCustomer({
+    const newCustomer = await this.repository.CreateCustomer({
       email,
       password: userPassword,
       phone,
     });
 
     const token = await GenerateSignature({
-      email: email,
-      _id: existingCustomer._id,
+      email: newCustomer.email,
+      _id: newCustomer._id,
     });
-    return FormatData({ id: existingCustomer._id, token });
+
+    return FormatData({ id: newCustomer._id, token });
   }
 
   async AddNewAddress(_id, userInputs) {
