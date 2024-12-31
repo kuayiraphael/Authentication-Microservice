@@ -1,4 +1,6 @@
 const CustomerRepository = require("../database/repository/customer-repository");
+const redis = require('redis'); //~
+
 const {
   FormatData,
   GeneratePassword,
@@ -7,8 +9,10 @@ const {
 } = require("../utils");
 
 class CustomerService {
-  constructor() {
+  constructor(redisClient ) {//~
     this.repository = new CustomerRepository();
+    this.redisClient = redisClient; //~
+
   }
 
   async SignIn(userInputs) {
@@ -21,18 +25,40 @@ class CustomerService {
         password,
         existingCustomer.password
       );
-      if (validPassword) {
-        const token = await GenerateSignature({
-          email: existingCustomer.email,
-          _id: existingCustomer._id,
-        });
-        return FormatData({ id: existingCustomer._id, token });
-      }
+      // if (validPassword) {
+      //   const token = await GenerateSignature({
+      //     email: existingCustomer.email,
+      //     _id: existingCustomer._id,
+      //   });
+      //   return FormatData({ id: existingCustomer._id, token });
+      // }
+      if (existingCustomer) {
+        const validPassword = await ValidatePassword(password, existingCustomer.password);
+        if (validPassword) {
+          const accessToken = await GenerateSignature({ email: existingCustomer.email, _id: existingCustomer._id });
+  
+          // Generate and store refresh token
+          const refreshToken = await GenerateSignature({ email: existingCustomer.email, _id: existingCustomer._id }, '7d');
+          await this.redisClient.set(`refresh_token:${refreshToken}`, JSON.stringify({ email: existingCustomer.email, _id: existingCustomer._id }), { EX: 60 * 60 * 24 * 7 }); // expires in 7 days
+          
+          return FormatData({ id: existingCustomer._id, accessToken, refreshToken });
+        }}
     }
 
     return FormatData(null);
   }
-
+  async RefreshToken(refreshToken) {
+    const storedData = await this.redisClient.get(`refresh_token:${refreshToken}`);
+    
+    if (!storedData) {
+      throw new Error('Invalid or expired refresh token');
+    }
+    
+    const userData = JSON.parse(storedData);
+    const newAccessToken = await GenerateSignature({ email: userData.email, _id: userData._id });
+    return { newAccessToken };
+  }
+  
   async SignUp(userInputs) {
     const { email, password, phone } = userInputs;
 
