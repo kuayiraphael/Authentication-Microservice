@@ -98,10 +98,36 @@ customerRoutes = (app, channel, redisClient) => {
   });
 
   // Login Route
+  // app.post("/login", async (req, res, next) => {
+  //   const { email, password } = req.body;
+  //   const { data } = await service.SignIn({ email, password });
+  //   res.json(data);
+  // });
   app.post("/login", async (req, res, next) => {
     const { email, password } = req.body;
-    const { data } = await service.SignIn({ email, password });
-    res.json(data);
+
+    try {
+      // Call SignIn to authenticate the user
+      const { data, statusCode, message } = await service.SignIn({
+        email,
+        password,
+      });
+
+      // If the SignIn service returns an error status, return that error to the client
+      if (statusCode && statusCode !== 200) {
+        return res
+          .status(statusCode)
+          .json({ message: message || "Invalid email or password." });
+      }
+
+      // If authentication is successful, return the data (e.g., tokens)
+      return res.json(data);
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "An error occurred during login. Please try again." });
+    }
   });
 
   // Logout Route

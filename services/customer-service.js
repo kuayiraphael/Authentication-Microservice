@@ -1,5 +1,4 @@
 const CustomerRepository = require("../database/repository/customer-repository");
-const redis = require("redis"); //~
 
 const {
   FormatData,
@@ -15,59 +14,99 @@ class CustomerService {
     this.redisClient = redisClient; //~
   }
 
+  // async SignIn(userInputs) {
+  //   const { email, password } = userInputs;
+
+  //   const existingCustomer = await this.repository.FindCustomer({ email });
+
+  //   if (existingCustomer) {
+  //     const validPassword = await ValidatePassword(
+  //       password,
+  //       existingCustomer.password
+  //     );
+
+  //     if (existingCustomer) {
+  //       const validPassword = await ValidatePassword(
+  //         password,
+  //         existingCustomer.password
+  //       );
+  //       if (validPassword) {
+  //         const accessToken = await GenerateSignature({
+  //           email: existingCustomer.email,
+  //           _id: existingCustomer._id,
+  //         });
+
+  //         // Generate and store refresh token
+  //         const refreshToken = await GenerateSignature(
+  //           { email: existingCustomer.email, _id: existingCustomer._id },
+  //           "7d"
+  //         );
+  //         await this.redisClient.set(
+  //           `refresh_token:${refreshToken}`,
+  //           JSON.stringify({
+  //             email: existingCustomer.email,
+  //             _id: existingCustomer._id,
+  //           }),
+  //           { EX: 60 * 60 * 24 * 7 }
+  //         ); // expires in 7 days
+
+  //         return FormatData({
+  //           id: existingCustomer._id,
+  //           accessToken,
+  //           refreshToken,
+  //         });
+  //       }
+  //     }
+  //   }
+
+  //   return FormatData(null);
+  // }
+
   async SignIn(userInputs) {
     const { email, password } = userInputs;
-
+  
+    // Find customer by email
     const existingCustomer = await this.repository.FindCustomer({ email });
-
-    if (existingCustomer) {
-      const validPassword = await ValidatePassword(
-        password,
-        existingCustomer.password
-      );
-      // if (validPassword) {
-      //   const token = await GenerateSignature({
-      //     email: existingCustomer.email,
-      //     _id: existingCustomer._id,
-      //   });
-      //   return FormatData({ id: existingCustomer._id, token });
-      // }
-      if (existingCustomer) {
-        const validPassword = await ValidatePassword(
-          password,
-          existingCustomer.password
-        );
-        if (validPassword) {
-          const accessToken = await GenerateSignature({
-            email: existingCustomer.email,
-            _id: existingCustomer._id,
-          });
-
-          // Generate and store refresh token
-          const refreshToken = await GenerateSignature(
-            { email: existingCustomer.email, _id: existingCustomer._id },
-            "7d"
-          );
-          await this.redisClient.set(
-            `refresh_token:${refreshToken}`,
-            JSON.stringify({
-              email: existingCustomer.email,
-              _id: existingCustomer._id,
-            }),
-            { EX: 60 * 60 * 24 * 7 }
-          ); // expires in 7 days
-
-          return FormatData({
-            id: existingCustomer._id,
-            accessToken,
-            refreshToken,
-          });
-        }
-      }
+  
+    if (!existingCustomer) {
+      // If no customer exists with the given email, return error
+      return FormatData(null, "Invalid email or password", 401); // Unauthorized
     }
-
-    return FormatData(null);
+  
+    const validPassword = await ValidatePassword(password, existingCustomer.password);
+    if (!validPassword) {
+      // If password is invalid, return error
+      return FormatData(null, "Invalid email or password", 401); // Unauthorized
+    }
+  
+    // If credentials are valid, generate tokens
+    const accessToken = await GenerateSignature({
+      email: existingCustomer.email,
+      _id: existingCustomer._id,
+    });
+  
+    // Generate and store refresh token in Redis
+    const refreshToken = await GenerateSignature(
+      { email: existingCustomer.email, _id: existingCustomer._id },
+      "7d"
+    );
+    
+    await this.redisClient.set(
+      `refresh_token:${refreshToken}`,
+      JSON.stringify({
+        email: existingCustomer.email,
+        _id: existingCustomer._id,
+      }),
+      { EX: 60 * 60 * 24 * 7 } // expires in 7 days
+    );
+  
+    return FormatData({
+      id: existingCustomer._id,
+      accessToken,
+      refreshToken,
+    });
   }
+  
   async RefreshToken(refreshToken) {
     const storedData = await this.redisClient.get(
       `refresh_token:${refreshToken}`
@@ -85,49 +124,6 @@ class CustomerService {
     return { newAccessToken };
   }
 
-  // async SignUp(userInputs) {
-  //   const { email, password, phone } = userInputs;
-
-  //   let userPassword = await GeneratePassword(password);
-
-  //   const existingCustomer = await this.repository.CreateCustomer({
-  //     email,
-  //     password: userPassword,
-  //     phone,
-  //   });
-
-  //   const token = await GenerateSignature({
-  //     email: email,
-  //     _id: existingCustomer._id,
-  //   });
-  //   return FormatData({ id: existingCustomer._id, token });
-  // }
-  // async SignUp(userInputs) {
-  //   const { email, password, phone } = userInputs;
-
-  //   // Check if the customer already exists
-  //   const existingCustomer = await this.repository.FindCustomer({ email });
-
-  //   if (existingCustomer) {
-  //     // Return a structured response instead of throwing an error
-  //     return FormatData(null, "User already exists", 400);
-  //   }
-
-  //   let userPassword = await GeneratePassword(password);
-
-  //   const newCustomer = await this.repository.CreateCustomer({
-  //     email,
-  //     password: userPassword,
-  //     phone,
-  //   });
-
-  //   const token = await GenerateSignature({
-  //     email: newCustomer.email,
-  //     _id: newCustomer._id,
-  //   });
-
-  //   return FormatData({ id: newCustomer._id, token });
-  // }
   async SignUp(userInputs) {
     const { email, password, phone } = userInputs;
 
