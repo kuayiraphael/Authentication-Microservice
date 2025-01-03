@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const { CreateChannel, SubscribeMessage } = require("./utils");
 const customerRoutes = require("./api/customer");
-const appEvents = require("./api/app-events");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const redis = require('redis');

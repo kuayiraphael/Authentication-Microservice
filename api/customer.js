@@ -2,74 +2,6 @@ const CustomerService = require("../services/customer-service");
 const auth = require("./middlewares/auth");
 const { SubscribeMessage } = require("../utils");
 
-// customerRoutes = (app, channel,) => {
-
-//     const service = new CustomerService();
-
-//     // To listen
-//     SubscribeMessage(channel, service);
-
-//     app.post('/signup', async (req,res,next) => {
-//         const { email, password, phone } = req.body;
-//         const { data } = await service.SignUp({ email, password, phone});
-//         res.json(data);
-
-//     });
-
-//     app.post('/login',  async (req,res,next) => {
-
-//         const { email, password } = req.body;
-
-//         const { data } = await service.SignIn({ email, password});
-
-//         res.json(data);
-
-//     });
-
-//     app.post('/address', auth, async (req,res,next) => {
-
-//         const { _id } = req.user;
-
-//         const { street, postalCode, city,country } = req.body;
-
-//         const { data } = await service.AddNewAddress( _id ,{ street, postalCode, city,country});
-
-//         res.json(data);
-
-//     });
-
-//     app.get('/profile', auth ,async (req,res,next) => {
-
-//         const { _id } = req.user;
-//         const { data } = await service.GetProfile({ _id });
-//         res.json(data);
-//     });
-
-//     app.get('/shoping-details', auth, async (req,res,next) => {
-//         const { _id } = req.user;
-//        const { data } = await service.GetShoppingDetails(_id);
-
-//        return res.json(data);
-//     });
-
-//     app.get('/cart', auth, async (req,res,next) => {
-//         const { _id } = req.user;
-//        const { data } = await service.GetCart(_id)
-
-//        return res.json(data);
-//     });
-
-//     app.get('/wishlist', auth, async (req,res,next) => {
-//         const { _id } = req.user;
-//         const { data } = await service.GetWishList( _id);
-//         return res.status(200).json(data);
-//     });
-
-//     app.get('/whoami', (req,res,next) => {
-//         return res.status(200).json({msg: '/customer : I am Customer Service'})
-//     })
-// }
-
 customerRoutes = (app, channel, redisClient) => {
   const service = new CustomerService(redisClient);
 
@@ -77,53 +9,47 @@ customerRoutes = (app, channel, redisClient) => {
   SubscribeMessage(channel, service);
 
   // Signup Route
-  // app.post("/signup", async (req, res, next) => {
-  //   const { email, password, phone } = req.body;
-  //   const { data } = await service.SignUp({ email, password, phone });
-  //   res.json(data);
-  // });
   app.post("/signup", async (req, res, next) => {
-    const { email, password, phone } = req.body;
-    const response = await service.SignUp({ email, password, phone });
+    try {
+      const { email, password, phone } = req.body;
+      const response = await service.SignUp({ email, password, phone });
 
-    if (response.statusCode && response.statusCode !== 200) {
-      // If response has a status code other than 200, return it to the client
+      if (response.statusCode && response.statusCode !== 200) {
+        return res
+          .status(response.statusCode)
+          .json({ message: response.message });
+      }
+
+      return res.json(response.data);
+    } catch (error) {
+      console.error("Error during signup:", error);
       return res
-        .status(response.statusCode)
-        .json({ message: response.message });
+        .status(500)
+        .json({
+          message: "An error occurred during signup. Please try again.",
+        });
     }
-
-    // If everything is fine, return the successful response
-    return res.json(response.data);
   });
 
   // Login Route
-  // app.post("/login", async (req, res, next) => {
-  //   const { email, password } = req.body;
-  //   const { data } = await service.SignIn({ email, password });
-  //   res.json(data);
-  // });
   app.post("/login", async (req, res, next) => {
-    const { email, password } = req.body;
-
     try {
-      // Call SignIn to authenticate the user
+      const { email, password } = req.body;
+
       const { data, statusCode, message } = await service.SignIn({
         email,
         password,
       });
 
-      // If the SignIn service returns an error status, return that error to the client
       if (statusCode && statusCode !== 200) {
         return res
           .status(statusCode)
           .json({ message: message || "Invalid email or password." });
       }
 
-      // If authentication is successful, return the data (e.g., tokens)
       return res.json(data);
     } catch (error) {
-      console.error(error);
+      console.error("Error during login:", error);
       return res
         .status(500)
         .json({ message: "An error occurred during login. Please try again." });
@@ -132,44 +58,63 @@ customerRoutes = (app, channel, redisClient) => {
 
   // Logout Route
   app.post("/logout", auth, async (req, res, next) => {
-    const { refreshToken } = req.body;
+    try {
+      const { refreshToken } = req.body;
 
-    if (!refreshToken) {
-      return res.status(400).json({ message: "Refresh token is required" });
+      if (!refreshToken) {
+        return res.status(400).json({ message: "Refresh token is required" });
+      }
+
+      await redisClient.del(`refresh_token:${refreshToken}`);
+      return res.status(200).json({ message: "Logged out successfully" });
+    } catch (error) {
+      console.error("Error during logout:", error);
+      return res
+        .status(500)
+        .json({
+          message: "An error occurred during logout. Please try again.",
+        });
     }
-
-    // Delete refresh token from Redis
-    await redisClient.del(`refresh_token:${refreshToken}`);
-    res.status(200).json({ message: "Logged out successfully" });
   });
 
   // Refresh Token Route
   app.post("/refresh-token", async (req, res, next) => {
-    const { refreshToken } = req.body;
+    try {
+      const { refreshToken } = req.body;
 
-    if (!refreshToken) {
-      return res.status(400).json({ message: "Refresh token is required" });
+      if (!refreshToken) {
+        return res.status(400).json({ message: "Refresh token is required" });
+      }
+
+      const storedRefreshToken = await redisClient.get(
+        `refresh_token:${refreshToken}`
+      );
+
+      if (!storedRefreshToken) {
+        return res
+          .status(403)
+          .json({ message: "Invalid or expired refresh token" });
+      }
+
+      const { newAccessToken } = await service.RefreshToken(refreshToken);
+      return res.json({ accessToken: newAccessToken });
+    } catch (error) {
+      console.error("Error during token refresh:", error);
+      return res.status(500).json({
+        message: "An error occurred during token refresh. Please try again.",
+      });
     }
-
-    const storedRefreshToken = await redisClient.get(
-      `refresh_token:${refreshToken}`
-    );
-
-    if (!storedRefreshToken) {
-      return res
-        .status(403)
-        .json({ message: "Invalid or expired refresh token" });
-    }
-
-    // Issue new access token
-    const { newAccessToken } = await service.RefreshToken(refreshToken);
-    res.json({ accessToken: newAccessToken });
   });
 
   // Restricted Route Example (Role-based access control)
   app.get("/admin", auth, async (req, res, next) => {
-    req.allowedRoles = ["admin"]; // Only admin can access this route
-    next();
+    try {
+      req.allowedRoles = ["admin"]; // Only admin can access this route
+      next();
+    } catch (error) {
+      console.error("Error accessing admin route:", error);
+      return res.status(403).json({ message: "Access denied." });
+    }
   });
 };
 
