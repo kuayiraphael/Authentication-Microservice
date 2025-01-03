@@ -14,7 +14,7 @@ dotenv.config(); // Load environment variables from .env file
 const redisClient = redis.createClient({
   url: process.env.REDIS_URL,
 });
-
+const port =  process.env.PORT || 8001;
 redisClient.on("error", (err) => {
   console.log("Redis Client Error", err);
 });
@@ -38,6 +38,9 @@ async function startApp() {
     const channel = await CreateChannel();
 
     await customerRoutes(app, channel, redisClient); // Pass Redis client to routes
+    app.listen(port, () => {
+      console.log("Product Service is Listening to Port ${port}");
+    }); // Pass Redis client to routes
 
     app.get("/health", (req, res) => {
       res.send("Customer Service Running");
@@ -49,5 +52,4 @@ async function startApp() {
 
 startApp();
 
-// Correct export statement
-module.exports = app;
+
