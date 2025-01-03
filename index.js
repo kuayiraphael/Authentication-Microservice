@@ -95,7 +95,7 @@ async function startApp() {
 
     await customerRoutes(app, channel, redisClient); // Pass Redis client to routes
 
-    app.get("/", (req, res) => {
+    app.get("/health", (req, res) => {
       res.send("Customer Service Running");
     });
   } catch (err) {
