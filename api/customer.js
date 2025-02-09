@@ -82,16 +82,37 @@ customerRoutes = (app, channel, redisClient) => {
   });
 
   // Update user's role
-  app.put("/role/:id", auth, async (req, res, next) => {
+  // app.put("/role/:id", auth, async (req, res, next) => {
+  //   try {
+  //     const { id } = req.params;
+  //     const { role } = req.body;
+
+  //     if (!role) {
+  //       return res.status(400).json({ message: "Role is required" });
+  //     }
+
+  //     const result = await service.UpdateUserRole(id, role);
+
+  //     if (result.statusCode && result.statusCode !== 200) {
+  //       return res.status(result.statusCode).json({ message: result.message });
+  //     }
+
+  //     return res.json(result.data);
+  //   } catch (error) {
+  //     console.error("Error updating user role:", error);
+  //     res.status(500).json({ message: "Internal server error" });
+  //   }
+  // });
+  app.put("/role", auth, async (req, res, next) => {
     try {
-      const { id } = req.params;
       const { role } = req.body;
+      const userId = req.user._id; // Extract user ID from auth token
 
       if (!role) {
         return res.status(400).json({ message: "Role is required" });
       }
 
-      const result = await service.UpdateUserRole(id, role);
+      const result = await service.UpdateUserRole(userId, role);
 
       if (result.statusCode && result.statusCode !== 200) {
         return res.status(result.statusCode).json({ message: result.message });
@@ -103,6 +124,7 @@ customerRoutes = (app, channel, redisClient) => {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+
   app.put("/update-password", auth, async (req, res) => {
     try {
       const { oldPassword, newPassword } = req.body;

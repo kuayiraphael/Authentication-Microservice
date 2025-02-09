@@ -199,7 +199,7 @@ class CustomerService {
     }
 
     // Validate if the role is valid (optional)
-    const validRoles = ["buyer", "admin"];
+    const validRoles = ["buyer", "seller"];
     if (!validRoles.includes(role)) {
       return FormatData(null, "Invalid role", 400); // Bad request
     }
